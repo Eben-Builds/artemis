@@ -320,3 +320,8 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 Code not owned by Google lives under [`third_party/`](third_party/), one directory per upstream project, each with its own `LICENSE` and `METADATA`.
 
 - [`third_party/mobile_use`](third_party/mobile_use/) – portions of [mobile-use](https://github.com/minitap-ai/mobile-use) by Minitap, Inc., Apache License 2.0.
+
+
+## Lumi local Ollama engineering profile
+
+Local-only E4B routing and deployment limits: [LUMI_LOCAL_OLLAMA.md](docs/LUMI_LOCAL_OLLAMA.md). Source verification does not enable device actions or prove model release and thermal safety.

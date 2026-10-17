@@ -45,7 +45,6 @@ from uuid import uuid4
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from artemis.llm.google import is_google_provider
 from artemis.memory.step_memory import JobKey, StepLens, StepMemoryService
 from artemis.memory.transcript import format_session_offset
 from third_party.mobile_use.utils.logger import get_logger
@@ -298,7 +297,14 @@ class StepCapsuleLens(StepLens):
         fallback_model_name: str | None = None,
         fallback_llm: Any | None = None,
     ):
-        self._model_name = model_name or "gemini-3.8-flash"
+        if model_name is None:
+            if ctx is None or getattr(ctx, "llm_config", None) is None:
+                from artemis.config.llm import get_default_llm_config
+
+                model_name = get_default_llm_config().summarizer.model
+            else:
+                model_name = ctx.llm_config.summarizer.model
+        self._model_name = model_name
         self._llm = llm
         self._ctx = ctx
         # Availability hardening: `chunking.model` is a dedicated model with no
@@ -323,17 +329,17 @@ class StepCapsuleLens(StepLens):
 
     def _get_llm(self):
         if self._llm is None:
-            from artemis.services.llm import get_google_llm
+            from artemis.services.llm import get_role_raw_model
 
-            self._llm = get_google_llm(model_name=self._model_name, temperature=0.0)
+            self._llm = get_role_raw_model(self._ctx, "summarizer", self._model_name)
         return self._llm
 
     def _get_fallback_llm(self):
         if self._fallback_llm is None and self._fallback_model_name:
-            from artemis.services.llm import get_google_llm
+            from artemis.services.llm import get_role_raw_model
 
-            self._fallback_llm = get_google_llm(
-                model_name=self._fallback_model_name, temperature=0.0
+            self._fallback_llm = get_role_raw_model(
+                self._ctx, "summarizer", self._fallback_model_name, use_fallback=True
             )
         return self._fallback_llm
 
@@ -891,7 +897,12 @@ class HistoryChunkManager:
         self._max_steps = int(getattr(cc, "max_steps", 12) or 12)
         self._min_steps = max(1, min(self._max_steps, int(getattr(cc, "min_steps", 3) or 3)))
         self._target_source_tokens = int(getattr(cc, "target_source_tokens", 2000) or 2000)
-        self._model_name = getattr(cc, "model", None) or "gemini-3.8-flash"
+        configured_summary = getattr(getattr(ctx, "llm_config", None), "summarizer", None)
+        self._model_name = (
+            getattr(cc, "model", None)
+            or getattr(configured_summary, "model", None)
+            or "gemini-3.8-flash"
+        )
         self._max_chunks = int(getattr(cc, "max_chunks", 8) or 8)
         # None uses max_chunks as the era cap.
         self._max_eras = int(getattr(cc, "max_eras", None) or self._max_chunks)
@@ -965,7 +976,7 @@ class HistoryChunkManager:
             fallback = getattr(getattr(llm_cfg, "summarizer", None), "fallback", None)
             provider = str(getattr(fallback, "provider", "") or "")
             model = getattr(fallback, "model", None)
-            if model and is_google_provider(provider) and model != self._model_name:
+            if model and provider == str(llm_cfg.summarizer.provider) and model != self._model_name:
                 return str(model)
         except Exception as exc:
             logger.debug(f"Capsule fallback model resolution skipped: {exc}", exc_info=True)

@@ -29,6 +29,16 @@ from artemis.agents.validator.tool_declarations import (
 from artemis.context import ArtemisContext
 
 
+@pytest.fixture(autouse=True)
+def offline_summary_model(monkeypatch):
+    # These tests exercise memory/UI orchestration, not provider construction.
+    # Provider selection and failures are covered in test_local_ollama_only.py.
+    monkeypatch.setattr(
+        "artemis.agents.flash.summarizer.get_role_raw_model",
+        Mock(return_value=Mock()),
+    )
+
+
 @pytest.fixture
 def mock_context():
     ctx = Mock(spec=ArtemisContext)

@@ -939,6 +939,27 @@ def _resolve_endpoint(
     )
 
 
+def get_role_raw_model(
+    ctx: ArtemisContext | None,
+    role: str,
+    model_name: str | None = None,
+    *,
+    use_fallback: bool = False,
+) -> BaseChatModel:
+    """Resolve dedicated memory models through their configured provider.
+
+    Missing/broken configuration propagates without implicit cloud recovery.
+    """
+    if ctx is None:
+        from types import SimpleNamespace
+
+        ctx = SimpleNamespace(llm_config=get_default_llm_config())
+    endpoint = _resolve_endpoint(ctx, role, use_fallback=use_fallback)
+    if model_name:
+        endpoint = endpoint.model_copy(update={"model_name": model_name})
+    return ModelFactory.get_model(endpoint)
+
+
 def _get_llm(
     ctx: ArtemisContext,
     name: str,
