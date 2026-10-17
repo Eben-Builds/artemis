@@ -71,6 +71,12 @@ jobs:
           tests/unit/test_llm_gateway.py
           tests/unit/test_memory_config.py
           tests/unit/test_config_package.py
+          tests/unit/agents/test_explorer.py
+          tests/unit/agents/test_explorer_universal.py
+          tests/unit/agents/test_video_analyzer.py
+          tests/unit/agents/test_video_analyzer_universal.py
+          tests/unit/utils/test_optional_ocr.py
+          tests/unit/tools/test_ocr_tool.py
           -q
 
       # Device, cloud, manual, and end-to-end suites require dedicated

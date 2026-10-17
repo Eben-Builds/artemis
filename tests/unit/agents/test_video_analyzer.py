@@ -32,6 +32,32 @@ from google.genai import types
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def offline_native_credentials(monkeypatch):
+    # Native-engine tests already mock the SDK clients. Do not require real keys.
+    from pydantic import SecretStr
+    from artemis.config import settings
+    import socket
+
+    monkeypatch.setattr(settings, "GOOGLE_API_KEY", SecretStr("public-unit-test-placeholder"))
+
+    original_connect = socket.socket.connect
+    original_connect_ex = socket.socket.connect_ex
+
+    def local_connect(sock, address):
+        if isinstance(address, tuple) and address[0] in {"127.0.0.1", "::1"}:
+            return original_connect(sock, address)
+        raise AssertionError("External network access is forbidden in this offline test")
+
+    def local_connect_ex(sock, address):
+        if isinstance(address, tuple) and address[0] in {"127.0.0.1", "::1"}:
+            return original_connect_ex(sock, address)
+        raise AssertionError("External network access is forbidden in this offline test")
+
+    monkeypatch.setattr(socket.socket, "connect", local_connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", local_connect_ex)
+
+
 @pytest.mark.asyncio
 async def test_video_analyzer_run():
     # Mock context
