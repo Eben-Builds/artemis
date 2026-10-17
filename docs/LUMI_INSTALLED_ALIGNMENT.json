@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "installed_source": "da39e5ba53528af435f951cc7e1ea1d022b911b8",
+  "installed_original_commits_preserved": [
+    "81532cbb5c5bb643a3ff535ca3287942b478c931",
+    "6d52ae2b32fa608229ec128a35405bd303384fae",
+    "3c4c555cef5aa46875804ea3e08ea9d415c6db87",
+    "bf963cd0990b080bd0de80f27404e058e172fc40",
+    "3858294ed101f3b0ec7ff65487f45f8079925acb",
+    "da39e5ba53528af435f951cc7e1ea1d022b911b8"
+  ],
+  "candidate_base": "b4e7c8e821423cddb925a2fc64671448f38b68a1",
+  "ported_feature_files": [
+    {
+      "path": "apps/showcase_ui/src/app/components/agent-stream/agent-stream.component.scss",
+      "canonical_sha256": "f893582e34c3d285aaf3b3937ab6a023eec65bf901cbcbcf90d2199fa71e1167",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/components/agent-stream/agent-stream.component.ts",
+      "canonical_sha256": "000b5c03b0418ba6cff256a5af54e8b810d169e12e3846987d11e15e22d7b235",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/components/chat-interface/chat-interface.component.html",
+      "canonical_sha256": "80683d7edcdbfe9988c56614769efd6eaa63660093f46c473aa9fc6c3541c00d",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/components/chat-interface/chat-interface.component.ts",
+      "canonical_sha256": "cd9b05c1b0fe0c73c7fff36de9b2a13170b180612286d8fec237fb1657bc4ff0",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/pages/workspace/workspace.component.html",
+      "canonical_sha256": "f22cb8851d202832de7641064a1d9790301227e7ef3b8abc094ed367388889f6",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/pages/workspace/workspace.component.scss",
+      "canonical_sha256": "a41c8da674e9228dcea9f40b68e5510dc7bc16d856f99940bc7863e863278039",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/pages/workspace/workspace.component.ts",
+      "canonical_sha256": "94d7e612e26fb9e50f2dae9ce5d17c032796df477aa3e0bf7b28c9be61e02789",
+      "installed_and_candidate_match": true
+    },
+    {
+      "path": "apps/showcase_ui/src/app/services/agent.service.ts",
+      "canonical_sha256": "12944e43d72745ec799b7beabfd5a25b4afe78afab42a6de858819414c3e2640",
+      "installed_and_candidate_match": true
+    }
+  ],
+  "backend_tree_unchanged_from_candidate_base": true,
+  "windows_scoped_frontend_tests": {
+    "passed": 22,
+    "new_tests": 8,
+    "runner": "Chrome Headless 155.0.0.0 on Windows",
+    "real_session_data": false
+  },
+  "windows_local_policy_tests": {
+    "passed": 33,
+    "inference": false
+  },
+  "windows_web_production_build": "PASS",
+  "installed_source_modified": false,
+  "server_restarted": false,
+  "runtime_deployed": false,
+  "hardware_status": "NOT_VERIFIED",
+  "full_e2e_executed": false
+}

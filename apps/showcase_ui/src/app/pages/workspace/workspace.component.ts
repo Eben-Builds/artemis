@@ -17,18 +17,29 @@
 import { Component, ChangeDetectionStrategy, NgZone, DestroyRef, inject, computed, signal, ViewChild, ElementRef, OnInit } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
 import { AgentStreamComponent } from '../../components/agent-stream/agent-stream.component';
-import { ChatInterfaceComponent } from '../../components/chat-interface/chat-interface.component';
 import { FloatingVideoPlayerComponent } from '../../components/floating-video-player/floating-video-player.component';
 import { AgentService } from '../../services/agent.service';
+
+type WorkspacePane = { type: 'pane'; id: string; sessionId: string | null };
+type WorkspaceSplit = {
+  type: 'split';
+  id: string;
+  direction: 'horizontal' | 'vertical';
+  ratio: number;
+  first: WorkspaceNode;
+  second: WorkspaceNode;
+};
+type WorkspaceNode = WorkspacePane | WorkspaceSplit;
 
 @Component({
   selector: 'app-workspace',
   standalone: true,
   imports: [
+    CommonModule,
     FormsModule,
     AgentStreamComponent,
-    ChatInterfaceComponent,
     FloatingVideoPlayerComponent
 ],
   templateUrl: './workspace.component.html',
@@ -44,9 +55,24 @@ export class WorkspaceComponent implements OnInit {
   public rightPanelWidth = signal<number>(
     typeof window !== 'undefined' ? Math.round(window.innerWidth / 3) : 450
   );
+  public rightPanelHeight = signal<number>(
+    typeof window !== 'undefined' ? Math.round(window.innerHeight / 3) : 300
+  );
+  public splitDirection = signal<'horizontal' | 'vertical'>('horizontal');
+  public isCompactViewport = signal<boolean>(typeof window !== 'undefined' && window.innerWidth <= 1150);
+  public secondarySessionId = signal<string | null>(null);
+  public nestedLayout = signal<WorkspaceNode>({ type: 'pane', id: 'secondary', sessionId: null });
+  public activePaneId = signal<string>('secondary');
   public isDragging = signal<boolean>(false);
+  public contextMenu = signal<{ x: number; y: number; sessionId: string } | null>(null);
+  public dropDirection = signal<'horizontal' | 'vertical' | null>(null);
+  private draggedSessionId: string | null = null;
+  private readonly layoutStorageKey = 'artemis.workspace.layout.v1';
   private dragWidthRafId: number | null = null;
   private pendingDragWidth = 0;
+  private pendingDragHeight = 0;
+  private activeTreeResize: { splitId: string; element: HTMLElement } | null = null;
+  private onViewportResize = (): void => this.isCompactViewport.set(window.innerWidth <= 1150);
 
   // Floating Command Bar State. taskInput is backed by a signal so computed
   // expressions (isBarExpanded) genuinely track it under OnPush.
@@ -64,6 +90,8 @@ export class WorkspaceComponent implements OnInit {
   @ViewChild('dockInput') public dockInputRef?: ElementRef<HTMLTextAreaElement>;
 
   ngOnInit(): void {
+    this.restoreLayout();
+    window.addEventListener('resize', this.onViewportResize);
     if (typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('artemis_selected_profile');
       if (saved === 'flash' || saved === 'pro') {
@@ -78,6 +106,7 @@ export class WorkspaceComponent implements OnInit {
     });
     this.destroyRef.onDestroy(() => {
       window.removeEventListener('keydown', this.onGlobalKeyDown);
+      window.removeEventListener('resize', this.onViewportResize);
       this.detachDragListeners();
     });
   }
@@ -291,17 +320,31 @@ export class WorkspaceComponent implements OnInit {
       return;
     }
 
-    const newWidth = window.innerWidth - event.clientX;
-    const minWidth = 250;
-    const maxWidth = window.innerWidth - 300;
+    if (!this.isCompactViewport() && this.splitDirection() === 'horizontal') {
+      const newWidth = window.innerWidth - event.clientX;
+      const minWidth = 250;
+      const maxWidth = window.innerWidth - 300;
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        this.pendingDragWidth = newWidth;
+        if (this.dragWidthRafId === null) {
+          this.dragWidthRafId = requestAnimationFrame(() => {
+            this.dragWidthRafId = null;
+            this.rightPanelWidth.set(this.pendingDragWidth);
+          });
+        }
+      }
+      return;
+    }
 
-    // Apply boundary limits to prevent panels from shrinking too much
-    if (newWidth >= minWidth && newWidth <= maxWidth) {
-      this.pendingDragWidth = newWidth;
+    const newHeight = window.innerHeight - event.clientY;
+    const minHeight = 180;
+    const maxHeight = window.innerHeight - 180;
+    if (newHeight >= minHeight && newHeight <= maxHeight) {
+      this.pendingDragHeight = newHeight;
       if (this.dragWidthRafId === null) {
         this.dragWidthRafId = requestAnimationFrame(() => {
           this.dragWidthRafId = null;
-          this.rightPanelWidth.set(this.pendingDragWidth);
+          this.rightPanelHeight.set(this.pendingDragHeight);
         });
       }
     }
@@ -309,6 +352,7 @@ export class WorkspaceComponent implements OnInit {
 
   private onMouseUp = (): void => {
     this.isDragging.set(false);
+    this.persistLayout();
     this.detachDragListeners();
   };
 
@@ -319,5 +363,215 @@ export class WorkspaceComponent implements OnInit {
       cancelAnimationFrame(this.dragWidthRafId);
       this.dragWidthRafId = null;
     }
+  }
+
+  public onSessionContextMenu(payload: { event: MouseEvent; sessionId: string }): void {
+    const menuWidth = 190;
+    const menuHeight = 112;
+    this.contextMenu.set({
+      x: Math.min(payload.event.clientX, window.innerWidth - menuWidth - 8),
+      y: Math.min(payload.event.clientY, window.innerHeight - menuHeight - 8),
+      sessionId: payload.sessionId
+    });
+  }
+
+  public openPaneContextMenu(panelId: string, sessionId: string | null, event: MouseEvent): void {
+    if (!sessionId) return;
+    this.activePaneId.set(panelId);
+    this.onSessionContextMenu({ event, sessionId });
+  }
+
+  public splitSession(direction: 'horizontal' | 'vertical'): void {
+    const sessionId = this.contextMenu()?.sessionId;
+    this.splitPanel(this.activePaneId(), direction, sessionId || null);
+    this.contextMenu.set(null);
+  }
+
+  public splitPanel(panelId: string, direction: 'horizontal' | 'vertical', sessionId: string | null = null): void {
+    const makeId = () => `pane-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const addSplit = (node: WorkspaceNode): WorkspaceNode => {
+      if (node.type === 'pane' && node.id === panelId) {
+        return {
+          type: 'split', id: `split-${makeId()}`, direction, ratio: 0.5,
+          first: node,
+          second: { type: 'pane', id: makeId(), sessionId }
+        };
+      }
+      if (node.type === 'pane') return node;
+      return { ...node, first: addSplit(node.first), second: addSplit(node.second) };
+    };
+    this.nestedLayout.update(addSplit);
+    if (sessionId) this.agentService.loadPanelSession(sessionId);
+    this.persistLayout();
+  }
+
+  public closePanel(panelId: string): void {
+    const collapse = (node: WorkspaceNode): WorkspaceNode | null => {
+      if (node.type === 'pane') return node.id === panelId ? null : node;
+      if (node.first.type === 'pane' && node.first.id === panelId) return node.second;
+      if (node.second.type === 'pane' && node.second.id === panelId) return node.first;
+      const first = collapse(node.first);
+      const second = collapse(node.second);
+      if (!first) return second;
+      if (!second) return first;
+      return { ...node, first, second };
+    };
+    const next = collapse(this.nestedLayout());
+    if (next) this.nestedLayout.set(next);
+    this.persistLayout();
+  }
+
+  public setPanelSession(panelId: string, event: Event): void {
+    const sessionId = (event.target as HTMLSelectElement).value || null;
+    const update = (node: WorkspaceNode): WorkspaceNode => {
+      if (node.type === 'pane') {
+        if (node.id === panelId && sessionId) this.agentService.loadPanelSession(sessionId);
+        return node.id === panelId ? { ...node, sessionId } : node;
+      }
+      return { ...node, first: update(node.first), second: update(node.second) };
+    };
+    this.nestedLayout.update(update);
+    this.persistLayout();
+  }
+
+  public onTreeResizeStart(splitId: string, event: PointerEvent): void {
+    const element = (event.currentTarget as HTMLElement).parentElement;
+    if (!element) return;
+    event.preventDefault();
+    this.activeTreeResize = { splitId, element };
+    const move = (moveEvent: PointerEvent) => {
+      const active = this.activeTreeResize;
+      if (!active) return;
+      const bounds = active.element.getBoundingClientRect();
+      const split = this.findSplit(this.nestedLayout(), active.splitId);
+      if (!split) return;
+      const extent = split.direction === 'horizontal' ? bounds.width : bounds.height;
+      if (extent <= 0) return;
+      const ratio = split.direction === 'horizontal'
+        ? (moveEvent.clientX - bounds.left) / bounds.width
+        : (moveEvent.clientY - bounds.top) / bounds.height;
+      const minRatio = Math.min(0.45, 180 / extent);
+      this.updateSplitRatio(active.splitId, Math.max(minRatio, Math.min(1 - minRatio, ratio)));
+    };
+    const stop = () => {
+      this.activeTreeResize = null;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', stop);
+      this.persistLayout();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', stop, { once: true });
+  }
+
+  private findSplit(node: WorkspaceNode, id: string): WorkspaceSplit | null {
+    if (node.type === 'pane') return null;
+    if (node.id === id) return node;
+    return this.findSplit(node.first, id) || this.findSplit(node.second, id);
+  }
+
+  private updateSplitRatio(id: string, ratio: number): void {
+    const update = (node: WorkspaceNode): WorkspaceNode => node.type === 'pane'
+      ? node
+      : {
+          ...node,
+          ratio: node.id === id ? ratio : node.ratio,
+          first: update(node.first),
+          second: update(node.second)
+        };
+    this.nestedLayout.update(update);
+  }
+
+  public closeContextMenu(): void {
+    this.contextMenu.set(null);
+  }
+
+  public onSessionDragStart(sessionId: string): void {
+    this.draggedSessionId = sessionId;
+  }
+
+  public startPanelSessionDrag(sessionId: string | null, event: DragEvent): void {
+    if (!sessionId) {
+      event.preventDefault();
+      return;
+    }
+    this.draggedSessionId = sessionId;
+    event.dataTransfer?.setData('text/plain', sessionId);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
+  }
+
+  public onWorkspaceDragOver(event: DragEvent): void {
+    if (!this.draggedSessionId) return;
+    event.preventDefault();
+    this.dropDirection.set(
+      Math.abs(event.clientY - window.innerHeight / 2) > Math.abs(event.clientX - window.innerWidth / 2)
+        ? 'vertical'
+        : 'horizontal'
+    );
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  public onWorkspaceDrop(event: DragEvent): void {
+    event.preventDefault();
+    const sessionId = event.dataTransfer?.getData('text/plain') || this.draggedSessionId;
+    const direction = this.dropDirection();
+    this.draggedSessionId = null;
+    this.dropDirection.set(null);
+    if (!sessionId || !direction) return;
+    this.splitPanel(this.activePaneId(), direction, sessionId);
+  }
+
+  public clearDropPreview(): void {
+    this.dropDirection.set(null);
+  }
+
+  public onSecondarySessionChange(event: Event): void {
+    const sessionId = (event.target as HTMLSelectElement).value;
+    this.secondarySessionId.set(sessionId || null);
+    if (sessionId) this.agentService.loadPanelSession(sessionId);
+    this.persistLayout();
+  }
+
+  private persistLayout(): void {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(this.layoutStorageKey, JSON.stringify({
+      direction: this.splitDirection(),
+      width: this.rightPanelWidth(),
+      height: this.rightPanelHeight(),
+      secondarySessionId: this.secondarySessionId(),
+      nestedLayout: this.nestedLayout()
+    }));
+  }
+
+  private restoreLayout(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.layoutStorageKey) || 'null');
+      if (saved?.direction === 'horizontal' || saved?.direction === 'vertical') {
+        this.splitDirection.set(saved.direction);
+      }
+      if (Number.isFinite(saved?.width)) this.rightPanelWidth.set(saved.width);
+      if (Number.isFinite(saved?.height)) this.rightPanelHeight.set(saved.height);
+      if (typeof saved?.secondarySessionId === 'string') {
+        this.secondarySessionId.set(saved.secondarySessionId);
+        this.agentService.loadPanelSession(saved.secondarySessionId);
+      }
+      if (saved?.nestedLayout?.type === 'pane' || saved?.nestedLayout?.type === 'split') {
+        this.nestedLayout.set(saved.nestedLayout);
+        this.loadPanelSessions(saved.nestedLayout);
+      } else if (typeof saved?.secondarySessionId === 'string') {
+        this.nestedLayout.set({ type: 'pane', id: 'secondary', sessionId: saved.secondarySessionId });
+      }
+    } catch {
+      localStorage.removeItem(this.layoutStorageKey);
+    }
+  }
+
+  private loadPanelSessions(node: WorkspaceNode): void {
+    if (node.type === 'pane') {
+      if (node.sessionId) this.agentService.loadPanelSession(node.sessionId);
+      return;
+    }
+    this.loadPanelSessions(node.first);
+    this.loadPanelSessions(node.second);
   }
 }
