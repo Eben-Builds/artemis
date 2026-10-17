@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Component, ChangeDetectionStrategy, NgZone, signal, computed, effect, inject, untracked, DestroyRef, AfterViewInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, NgZone, signal, computed, effect, inject, untracked, DestroyRef, AfterViewInit, Input, OnChanges, SimpleChanges, HostBinding } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -238,7 +238,19 @@ export type { MarkdownSegment, MarkdownLine, NoteMilestone, ParsedNote, StreamRe
   styleUrl: './agent-stream.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AgentStreamComponent implements AfterViewInit {
+export class AgentStreamComponent implements AfterViewInit, OnChanges {
+  private panelSessionIdState = signal<string | null>(null);
+  @Input()
+  public set panelSessionId(value: string | null) {
+    this.panelSessionIdState.set(value);
+  }
+  public get panelSessionId(): string | null {
+    return this.panelSessionIdState();
+  }
+  @HostBinding('class.panel-session-view')
+  public get isPanelSessionView(): boolean {
+    return this.panelSessionIdState() !== null;
+  }
   public agentService = inject(AgentService);
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
@@ -428,14 +440,23 @@ export class AgentStreamComponent implements AfterViewInit {
 
   // Stream Log Filtering & Aggregation Computed Properties
   public filteredLogs = computed(() => {
-    const logs = this.agentService.sessionLogs();
-    const currentSessionId = this.agentService.currentSessionId();
+    const panelSessionId = this.panelSessionIdState();
+    const logs = panelSessionId
+      ? this.agentService.logsForPanelSession(panelSessionId)
+      : this.agentService.sessionLogs();
+    const currentSessionId = panelSessionId || this.agentService.currentSessionId();
     if (!currentSessionId) return logs;
     return logs.filter((log: any) => {
       const logSessionId = log.session_id || log.data?.session_id;
       return !logSessionId || logSessionId === currentSessionId;
     });
   });
+
+  public ngOnChanges(changes: SimpleChanges): void {
+    if (changes['panelSessionId'] && this.panelSessionId) {
+      this.agentService.loadPanelSession(this.panelSessionId);
+    }
+  }
 
   public sessionSummary = computed(() => {
     return compileSessionSummary(this.filteredLogs());

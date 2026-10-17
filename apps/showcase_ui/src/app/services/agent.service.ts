@@ -199,6 +199,7 @@ export class AgentService {
 
   public currentSessionId = signal<string | null>(null);
   public sessionLogs = signal<any[]>([]); // Dynamic array of all raw events received
+  private panelLogsBySession = signal<Record<string, any[]>>({});
   public isSessionContentLoading = signal<boolean>(false);
   public agentStatus = signal<string>('idle'); // Status of the agent runner process
   public runningSessionId = signal<string | null>(null);
@@ -704,6 +705,14 @@ export class AgentService {
    * @param isUserAction Whether this selection was explicitly triggered by user interaction
    */
   public selectSession(sessionId: string, isUserAction: boolean = false): void {
+    const previousSessionId = this.currentSessionId();
+    if (previousSessionId && previousSessionId !== sessionId) {
+      this.panelLogsBySession.update((all) => ({
+        ...all,
+        [previousSessionId]: this.sessionLogs()
+      }));
+    }
+
     if (isUserAction) {
       if (sessionId && sessionId === this.runningSessionId() && this.agentStatus() === 'running') {
         // User explicitly clicked the currently running task -> follow live runner
@@ -920,7 +929,8 @@ export class AgentService {
 
           // If the event is for a different session than what user is currently viewing, ignore for logs
           const curId = this.currentSessionId();
-          if (evtSessionId && curId && String(evtSessionId).trim().toLowerCase() !== String(curId).trim().toLowerCase()) {
+          if (evtSessionId && (!curId || String(evtSessionId).trim().toLowerCase() !== String(curId).trim().toLowerCase())) {
+            this.appendPanelLiveEvent(eventType, parsedData);
             return;
           }
 
@@ -1643,6 +1653,72 @@ export class AgentService {
         console.error(`Failed to fetch checks for session ${sessionId}:`, err);
       }
     });
+  }
+
+  /** Load a historical session snapshot for a secondary workspace panel. */
+  public loadPanelSession(sessionId: string): void {
+    if (!sessionId || this.panelLogsBySession()[sessionId]) return;
+    this.http.get<StepItemData[]>(`/api/sessions/${encodeURIComponent(sessionId)}/steps`).subscribe({
+      next: (steps) => {
+        const logs = (steps || []).map((step) => ({
+          type: 'step_updated',
+          session_id: sessionId,
+          timestamp: new Date((step.timestamp || Date.now() / 1000) * 1000).toISOString(),
+          data: step,
+          history_snapshot: true
+        }));
+        this.panelLogsBySession.update((all) => ({
+          ...all,
+          [sessionId]: [
+            ...logs,
+            ...(all[sessionId] || []).filter((log) => !log.history_snapshot && !log.checks_snapshot)
+          ]
+        }));
+        this.http.get<{ records?: any[]; streams?: PersistedCheckerStream[]; run_outcome?: any }>(
+          `/api/sessions/${encodeURIComponent(sessionId)}/checks`
+        ).subscribe({
+          next: (checks) => {
+            const checkerLogs = this.buildCheckerSnapshotLogs(
+              sessionId, checks?.records || [], checks?.run_outcome || null, checks?.streams || []
+            );
+            this.panelLogsBySession.update((all) => ({
+              ...all,
+              [sessionId]: [
+                ...(all[sessionId] || []).filter((log) => !log.checks_snapshot),
+                ...checkerLogs
+              ]
+            }));
+          },
+          error: (error) => console.warn(`Could not load checks for panel session ${sessionId}:`, error)
+        });
+      },
+      error: (error) => console.error(`Could not load panel session ${sessionId}:`, error)
+    });
+  }
+
+  public logsForPanelSession(sessionId: string): any[] {
+    if (this.currentSessionId() === sessionId) return this.sessionLogs();
+    return this.panelLogsBySession()[sessionId] || [];
+  }
+
+  private appendPanelLiveEvent(eventType: string, data: any): void {
+    const sessionId = String(data?.session_id || '');
+    if (!sessionId) return;
+    const timestamp = typeof data?.timestamp === 'number'
+      ? new Date(data.timestamp * 1000).toISOString()
+      : new Date().toISOString();
+    const log = {
+      type: eventType,
+      session_id: sessionId,
+      timestamp,
+      data: eventType === 'llm_stream'
+        ? { ...data, text: data.chunk ?? data.text ?? '' }
+        : data
+    };
+    this.panelLogsBySession.update((all) => ({
+      ...all,
+      [sessionId]: [...(all[sessionId] || []), log]
+    }));
   }
 
   /**

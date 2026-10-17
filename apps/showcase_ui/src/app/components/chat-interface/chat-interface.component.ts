@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Component, ChangeDetectionStrategy, inject, computed, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, computed, signal, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgentService } from '../../services/agent.service';
@@ -34,6 +34,13 @@ export type { MarkdownSegment, MarkdownLine, NoteMilestone, ParsedNote };
 })
 export class ChatInterfaceComponent {
   public agentService = inject(AgentService);
+
+  /** Opens the workspace split menu for a session card. */
+  @Output() public sessionContextMenu = new EventEmitter<{
+    event: MouseEvent;
+    sessionId: string;
+  }>();
+  @Output() public sessionDragStart = new EventEmitter<string>();
 
   public taskInput: string = '';
   // Signals so async completion handlers refresh this OnPush view.
@@ -222,6 +229,20 @@ export class ChatInterfaceComponent {
    */
   public selectTask(sessionId: string): void {
     this.agentService.selectSession(sessionId, true);
+  }
+
+  public openSessionContextMenu(sessionId: string, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sessionContextMenu.emit({ event, sessionId });
+  }
+
+  public startSessionDrag(sessionId: string, event: DragEvent): void {
+    event.dataTransfer?.setData('text/plain', sessionId);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+    this.sessionDragStart.emit(sessionId);
   }
 
   // Notes Computed Properties

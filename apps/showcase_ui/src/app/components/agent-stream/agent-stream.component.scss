@@ -3971,3 +3971,6 @@ $stream-row-height: 25px;
     }
   }
 }
+:host.panel-session-view .vscode-nav-header {
+  display: none !important;
+}

@@ -14,7 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<div class="workspace-container" [class.is-resizing]="isDragging()">
+<div class="workspace-container" [class.is-resizing]="isDragging()"
+  [class.is-compact]="isCompactViewport()"
+  [class.is-vertical-split]="splitDirection() === 'vertical'"
+  [class.has-drop-preview]="dropDirection() !== null"
+  (click)="closeContextMenu()"
+  (dragover)="onWorkspaceDragOver($event)"
+  (drop)="onWorkspaceDrop($event)"
+  (dragleave)="clearDropPreview()">
   <!-- Left Main Panel: Raw Agent Log Stream -->
   <main class="left-panel glass-panel">
     <app-agent-stream></app-agent-stream>
@@ -192,9 +199,66 @@ limitations under the License.
   </div>
 
   <!-- Right Sidebar Panel: Chat Interface Mock -->
-  <aside class="right-panel" [style.width.px]="rightPanelWidth()">
-    <app-chat-interface></app-chat-interface>
+  <aside class="right-panel" [style.width.px]="splitDirection() === 'horizontal' ? rightPanelWidth() : null"
+    [style.height.px]="isCompactViewport() || splitDirection() === 'vertical' ? rightPanelHeight() : null">
+    <ng-template #renderLayout let-node>
+      @if (node.type === 'pane') {
+        <section class="nested-pane" [attr.data-pane-id]="node.id"
+          (mousedown)="activePaneId.set(node.id)" (dragenter)="activePaneId.set(node.id)"
+          (contextmenu)="openPaneContextMenu(node.id, node.sessionId, $event)">
+          <header class="panel-session-picker">
+            <select [attr.aria-label]="'Session for panel ' + node.id"
+              [value]="node.sessionId || ''" (change)="setPanelSession(node.id, $event)">
+              <option value="">Choose a session…</option>
+              @for (session of agentService.sessions(); track session.session_id) {
+                <option [value]="session.session_id">{{ session.initial_goal || session.session_id }}</option>
+              }
+            </select>
+            <button type="button" title="Split right" aria-label="Split right"
+              (click)="splitPanel(node.id, 'horizontal')">↔</button>
+            <button type="button" title="Split bottom" aria-label="Split bottom"
+              (click)="splitPanel(node.id, 'vertical')">↕</button>
+            <button type="button" class="session-drag-handle" draggable="true"
+              (dragstart)="startPanelSessionDrag(node.sessionId, $event)"
+              title="Drag this session to create another pane" aria-label="Drag this session">⠿</button>
+            <button type="button" title="Close panel" aria-label="Close panel"
+              (click)="closePanel(node.id)">×</button>
+          </header>
+          @if (node.sessionId) {
+            <app-agent-stream [panelSessionId]="node.sessionId"></app-agent-stream>
+          } @else {
+            <div class="panel-session-empty">Choose a session for this panel.</div>
+          }
+        </section>
+      } @else {
+        <div class="nested-split" [class.split-vertical]="node.direction === 'vertical'">
+          <div class="nested-split-child" [style.flex]="node.ratio + ' 1 0'">
+            <ng-container [ngTemplateOutlet]="renderLayout" [ngTemplateOutletContext]="{ $implicit: node.first }"></ng-container>
+          </div>
+          <div class="nested-split-resizer" (pointerdown)="onTreeResizeStart(node.id, $event)" role="separator"
+            [attr.aria-orientation]="node.direction === 'horizontal' ? 'vertical' : 'horizontal'"></div>
+          <div class="nested-split-child" [style.flex]="(1 - node.ratio) + ' 1 0'">
+            <ng-container [ngTemplateOutlet]="renderLayout" [ngTemplateOutletContext]="{ $implicit: node.second }"></ng-container>
+          </div>
+        </div>
+      }
+    </ng-template>
+    <ng-container [ngTemplateOutlet]="renderLayout" [ngTemplateOutletContext]="{ $implicit: nestedLayout() }"></ng-container>
   </aside>
+
+  @if (contextMenu(); as menu) {
+    <div class="session-context-menu" [style.left.px]="menu.x" [style.top.px]="menu.y"
+      (click)="$event.stopPropagation()">
+      <button type="button" (click)="splitSession('horizontal')">
+        <span class="material-symbols-outlined">vertical_split</span>
+        Split right
+      </button>
+      <button type="button" (click)="splitSession('vertical')">
+        <span class="material-symbols-outlined">horizontal_split</span>
+        Split bottom
+      </button>
+    </div>
+  }
 
   <!-- Floating Video Replay Player Modal / Window -->
   <app-floating-video-player></app-floating-video-player>

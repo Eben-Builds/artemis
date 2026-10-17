@@ -68,9 +68,12 @@ limitations under the License.
       @for (session of activeQueue(); track trackSession($index, session)) {
         <div
           class="task-card"
+          draggable="true"
           [class.selected]="agentService.currentSessionId() === session.session_id"
           [class.running]="getTaskStatus(session) === 'running'"
           (click)="selectTask(session.session_id)"
+          (contextmenu)="openSessionContextMenu(session.session_id, $event)"
+          (dragstart)="startSessionDrag(session.session_id, $event)"
           >
           <div class="task-card-header">
             <span class="task-badge" [ngClass]="getTaskStatus(session)">
@@ -138,9 +141,12 @@ limitations under the License.
           @for (session of historyTasks(); track trackSession($index, session)) {
             <div
               class="task-card"
+              draggable="true"
               [class.selected]="agentService.currentSessionId() === session.session_id"
               [class.running]="getTaskStatus(session) === 'running'"
               (click)="selectTask(session.session_id)"
+              (contextmenu)="openSessionContextMenu(session.session_id, $event)"
+              (dragstart)="startSessionDrag(session.session_id, $event)"
               >
               <div class="task-card-header">
                 <span class="task-badge" [ngClass]="getTaskStatus(session)">
