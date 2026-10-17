@@ -45,6 +45,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from artemis.llm.local_policy import local_only_enabled
+
 from artemis.agents.video_analyzer.conflict_resolution import (
     ConflictResolutionService,
 )
@@ -420,6 +422,12 @@ class VideoAnalyzer:
         self.model_name = strip_provider_prefix(
             llm_cfg.model if (llm_cfg and hasattr(llm_cfg, "model")) else "gemini-3.8-flash"
         )
+
+        if local_only_enabled():
+            self.client = None
+            self.use_native_gemini = False
+            self._resolve_video_processing()
+            return
 
         has_google_key = bool(
             settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.get_secret_value()

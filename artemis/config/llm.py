@@ -124,6 +124,8 @@ class LLMConfig(LLMConfigBase):
                 # Both are cheap, high-frequency judges: the pixel safety net
                 # runs before actions, the planner validator after every
                 # milestone edit. They share one lightweight default.
+                if self.operator.provider == "ollama":
+                    return self.operator
                 return lightweight_judge_default()
             elif item == "output_analyzer":
                 return self.log_analyzer
@@ -163,6 +165,17 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
         "diagnoser_expert",
         "explorer",
     ]
+
+    if default_model_cfg.get("provider") == "ollama":
+        # Keep local judges explicit without changing upstream cloud defaults.
+        all_agent_nodes.extend(
+            [
+                "history_analyzer",
+                "validator_pixel_safety_net",
+                "planner_validation",
+                "output_analyzer",
+            ]
+        )
 
     all_utils_nodes = [
         "outputter",

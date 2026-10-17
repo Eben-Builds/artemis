@@ -1005,7 +1005,7 @@ async def test_capsule_outage_without_fallback_exhausts_to_failed():
     assert service.get_summary("chunk:1-2") is None
 
 
-def test_capsule_fallback_model_resolution_google_only_and_not_primary():
+def test_capsule_fallback_model_resolution_same_provider_and_not_primary():
     mgr = HistoryChunkManager(
         capsule_service=StubCapsuleService(),
         chunking_config=SimpleNamespace(
@@ -1019,7 +1019,9 @@ def test_capsule_fallback_model_resolution_google_only_and_not_primary():
     def ctx_with(provider, model):
         return SimpleNamespace(
             llm_config=SimpleNamespace(
-                summarizer=SimpleNamespace(fallback=SimpleNamespace(provider=provider, model=model))
+                summarizer=SimpleNamespace(
+                    provider="google", fallback=SimpleNamespace(provider=provider, model=model)
+                )
             )
         )
 

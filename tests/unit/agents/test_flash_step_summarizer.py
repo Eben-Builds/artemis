@@ -31,6 +31,16 @@ from artemis.context import ArtemisContext
 from artemis.sdk.builders import Builders
 
 
+@pytest.fixture(autouse=True)
+def offline_summary_model(monkeypatch):
+    # These tests exercise memory/UI orchestration, not provider construction.
+    # Provider selection and failures are covered in test_local_ollama_only.py.
+    monkeypatch.setattr(
+        "artemis.agents.flash.summarizer.get_role_raw_model",
+        Mock(return_value=Mock()),
+    )
+
+
 @pytest.fixture
 def mock_context():
     ctx = Mock(spec=ArtemisContext)
@@ -832,7 +842,8 @@ def test_build_focus_context_drops_blank_fields_and_caps_reasoning_tail_intact()
     assert "Active sub-goal" not in block
 
 
-def test_flash_config_and_builder():
+def test_flash_config_and_builder(monkeypatch):
+    monkeypatch.setattr("artemis.config.llm.LLMConfig.validate_providers", lambda self: None)
     """Verify Flash profile configuration model and SDK builder fluent API."""
     cfg = Builders.AgentConfig.with_flash_config(
         max_turns=25,

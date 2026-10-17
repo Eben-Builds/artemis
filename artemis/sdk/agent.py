@@ -24,6 +24,8 @@ from dotenv import load_dotenv
 from google import genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from artemis.llm.local_policy import local_only_enabled
+
 from artemis.clients.screen_client_factory import (
     describe_backend,
     helper_version,
@@ -128,6 +130,9 @@ class Agent(AgentBase):
 
     async def _prewarm_llm_connections(self, api_key: str | None = None):
         """Pre-warms the HTTP2/gRPC connection pools for both Native GenAI and LangChain clients in the background."""
+        if local_only_enabled():
+            # No cloud ping and no local model warmup or automatic inference.
+            return
         if os.environ.get("ARTEMIS_FAKE_LLM") == "1":
             logger.info("ARTEMIS_FAKE_LLM=1 — skipping real LLM connection pre-warming.")
             publish_startup_progress(

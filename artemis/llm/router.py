@@ -28,6 +28,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from artemis.config.settings import settings
+from artemis.llm.local_policy import LOCAL_BASE_URL, enforce_local_endpoint
 from artemis.llm.google.provider import supports_thinking_level
 from third_party.mobile_use.utils.logger import get_logger
 
@@ -202,6 +203,7 @@ class ModelFactory:
 
     @classmethod
     def get_model(cls, endpoint: ModelEndpoint) -> BaseChatModel:
+        enforce_local_endpoint(endpoint)
         key = endpoint.cache_key()
         if key not in cls._cache:
             cls._cache[key] = cls.create_model(endpoint)
@@ -209,6 +211,7 @@ class ModelFactory:
 
     @classmethod
     def create_model(cls, endpoint: ModelEndpoint) -> BaseChatModel:
+        enforce_local_endpoint(endpoint)
         if os.environ.get("ARTEMIS_FAKE_LLM") == "1":
             from artemis.llm.fake_model import FakeChatModel
 
@@ -366,7 +369,26 @@ class ModelFactory:
                 timeout=endpoint.timeout_seconds,
             )
 
-        elif provider in (ModelProvider.OLLAMA, ModelProvider.VLLM, ModelProvider.CUSTOM):
+        elif provider == ModelProvider.OLLAMA:
+            import httpx
+            from langchain_openai import ChatOpenAI
+
+            # Never forward a real cloud credential or inherit a cloud base URL.
+            return ChatOpenAI(
+                model=endpoint.model_name,
+                temperature=endpoint.temperature,
+                max_tokens=endpoint.max_tokens,
+                api_key="ollama-local-no-credential",
+                base_url=endpoint.api_base or LOCAL_BASE_URL,
+                timeout=endpoint.timeout_seconds,
+                max_retries=0,
+                # Loopback requests must not inherit a proxy or follow a
+                # redirect to an external host.
+                http_client=httpx.Client(trust_env=False, follow_redirects=False),
+                http_async_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+            )
+
+        elif provider in (ModelProvider.VLLM, ModelProvider.CUSTOM):
             from langchain_openai import ChatOpenAI
 
             api_key = endpoint.api_key or os.environ.get("OPENAI_API_KEY", "EMPTY")

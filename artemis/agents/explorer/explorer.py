@@ -31,6 +31,8 @@ from typing import Any, Literal
 from google import genai
 from google.genai import types
 
+from artemis.llm.local_policy import local_only_enabled
+
 from artemis.agents.explorer.constants import DEFAULT_EXPLORER_MODEL
 from artemis.agents.explorer.geometry import (
     FALLBACK_SCREEN_SIZE,
@@ -128,6 +130,8 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         client already shared on the context) the SDK cannot be constructed,
         so such configurations run through the universal LangChain engine.
         """
+        if local_only_enabled():
+            return False
         if not is_gemini_model(self.model_name):
             return False
         if getattr(self.ctx, "_genai_client", None) is not None:
@@ -142,6 +146,8 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         touch ``genai`` (and never fail on a missing Google key).  The client
         is stored on the context for connection pooling across agents.
         """
+        if local_only_enabled():
+            raise ValueError("Native Google client is disabled by the local-only profile")
         client = getattr(self.ctx, "_genai_client", None)
         if client is None:
             logger.info("Initializing GenAI client on context for connection pooling (Explorer)")

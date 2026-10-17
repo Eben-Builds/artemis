@@ -61,6 +61,18 @@ jobs:
       - name: Type-check protected core modules
         run: uv run pyright --project pyright-core.json
 
+      - name: Verify local-only routing and related memory contracts
+        run: >-
+          uv run pytest
+          tests/unit/test_local_ollama_only.py
+          tests/unit/agents/test_flash_step_summarizer.py
+          tests/unit/agents/test_flash_runner.py
+          tests/unit/memory/test_history_chunking.py
+          tests/unit/test_llm_gateway.py
+          tests/unit/test_memory_config.py
+          tests/unit/test_config_package.py
+          -q
+
       # Device, cloud, manual, and end-to-end suites require dedicated
       # infrastructure and intentionally do not run on GitHub-hosted runners.
       - name: Run deterministic Python tests

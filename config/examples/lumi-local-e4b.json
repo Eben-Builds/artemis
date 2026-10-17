@@ -1,0 +1,12 @@
+{
+  "default": {
+    "provider": "ollama",
+    "model": "gemma4:e4b",
+    "timeout": 60,
+    "fallback": {"provider": "ollama", "model": "gemma4:e4b"}
+  },
+  "agent": {
+    "flash": {"step_summarizer": {"enabled": false, "model": "gemma4:e4b"}},
+    "memory": {"chunking": {"model": "gemma4:e4b"}}
+  }
+}

@@ -47,6 +47,12 @@ from artemis.config import (
 )
 
 
+@pytest.fixture
+def offline_profile_validation(monkeypatch):
+    # Configuration-only builder tests do not validate cloud credentials.
+    monkeypatch.setattr("artemis.config.llm.LLMConfig.validate_providers", lambda self: None)
+
+
 def test_paths_and_directories():
     """Verify central path resolution."""
     assert ROOT_DIR.exists()
@@ -251,6 +257,7 @@ def test_runtime_state_and_ipc(tmp_path, monkeypatch):
     assert not test_temp_file.exists()
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_planner_validation_builder_and_milestones():
     """Test AgentConfigBuilder methods for planner validation and milestone drift detection."""
     from artemis.sdk.builders.agent_config_builder import AgentConfigBuilder
@@ -282,6 +289,7 @@ def test_planner_validation_builder_and_milestones():
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("offline_profile_validation")
 async def test_committee_builder_and_graph_mounting():
     """Test AgentConfigBuilder committee methods and graph mounting."""
     from artemis.context import ArtemisContext, DeviceContext, DevicePlatform, ExecutionSetup
@@ -330,6 +338,7 @@ async def test_committee_builder_and_graph_mounting():
     assert "ask_committee" not in op_tools_enabled
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_checker_builder_and_context_propagation():
     """Test AgentConfigBuilder methods and context propagation for checker."""
     from unittest.mock import MagicMock
@@ -401,6 +410,7 @@ def test_checker_builder_and_context_propagation():
     assert ctx.execution_setup.final_check_enabled is False
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_factory_default_verification_layering():
     """Contract: out of the box, the verification stack is layered as
     final check ON / planner validation (ratchet) ON / midway checks OFF."""
@@ -442,6 +452,7 @@ def test_factory_default_verification_layering():
     assert AgentGlobalConfig().checker.enabled is True
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_explorer_builder_and_resolution(monkeypatch):
     """Test AgentConfigBuilder explorer methods and multi-tier resolution logic."""
     from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
@@ -547,6 +558,7 @@ def test_explorer_builder_and_resolution(monkeypatch):
     assert ctx.execution_setup.explorer_caching is False
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_outputter_builder_and_context_propagation():
     """Test AgentConfigBuilder outputter methods and propagation to ExecutionSetup."""
     from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
@@ -596,6 +608,7 @@ def test_outputter_builder_and_context_propagation():
     assert ctx.execution_setup.outputter.force_synthesis is True
 
 
+@pytest.mark.usefixtures("offline_profile_validation")
 def test_categorized_flash_and_pro_profile_builders():
     """Test with_flash_config and with_pro_config fluent builders and bidirectional sync."""
     from artemis.config.agent import AgentGlobalConfig

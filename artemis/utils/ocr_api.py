@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 from artemis.config import settings
+from artemis.llm.local_policy import local_only_enabled
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -32,6 +33,8 @@ def get_http_client() -> httpx.AsyncClient:
 
 def is_ocr_configured() -> bool:
     """Checks if a valid Google Vision OCR API key is configured."""
+    if local_only_enabled():
+        return False
     ocr_secret = settings.get_api_key("ocr")
     if ocr_secret and ocr_secret.get_secret_value().strip():
         val = ocr_secret.get_secret_value().strip()
@@ -61,6 +64,8 @@ async def perform_ocr(
     Returns:
         A list of dictionaries containing detected text and position vertices.
     """
+    if local_only_enabled():
+        raise ValueError("Cloud OCR is disabled by the local-only profile")
     ocr_secret = settings.get_api_key("ocr")
     api_key = (
         (ocr_secret.get_secret_value() if ocr_secret else None)
