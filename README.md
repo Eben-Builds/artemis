@@ -327,3 +327,5 @@ Code not owned by Google lives under [`third_party/`](third_party/), one directo
 Local-only E4B routing and deployment limits: [LUMI_LOCAL_OLLAMA.md](docs/LUMI_LOCAL_OLLAMA.md). Source verification does not enable device actions or prove model release and thermal safety.
 
 Installed local panel changes are preserved in the candidate without modifying the running checkout; Windows22 scoped frontend tests and production web build PASS. See [alignment evidence](docs/LUMI_INSTALLED_ALIGNMENT.json). This is not deployment or device/model acceptance.
+
+Local-only execution now refuses before task start/resume or model client creation while resource admission is unconnected. This is denial enforcement, not implemented hardware/resource lifecycle or runtime deployment. See [local engineering limits](docs/LUMI_LOCAL_OLLAMA.md).

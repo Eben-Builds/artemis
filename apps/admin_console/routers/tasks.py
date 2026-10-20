@@ -20,6 +20,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from artemis.core.diagnostics import readiness_engine
 from artemis.runtime import DeviceExecutionLock, device_pool
+from artemis.llm.resource_admission import (
+    LocalResourceAdmissionError,
+    require_local_resource_admission,
+)
 
 try:
     from admin_console.core.state import state
@@ -40,6 +44,19 @@ except ImportError:
 
 
 router = APIRouter(tags=["tasks"])
+
+
+def _require_local_task_admission() -> None:
+    try:
+        require_local_resource_admission()
+    except LocalResourceAdmissionError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "LOCAL_RESOURCE_ADMISSION_NOT_CONNECTED",
+                "message": "PC의 안전 확인이 끝나지 않아 작업을 시작할 수 없어요.",
+            },
+        ) from error
 
 
 @router.get("/api/tasks/presets")
@@ -68,6 +85,7 @@ async def get_task_catalog():
 
 @router.post("/api/run")
 async def run_task(request: RunRequest):
+    _require_local_task_admission()
     incoming_goals = []
     if request.goals:
         incoming_goals = request.goals
@@ -241,6 +259,7 @@ async def stop_task(
 
 @router.post("/api/resume")
 async def resume_task():
+    _require_local_task_admission()
     resumed = task_queue_service.resume_task()
     if resumed:
         return {"status": "resumed"}

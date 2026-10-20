@@ -25,6 +25,7 @@ from google import genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from artemis.llm.local_policy import local_only_enabled
+from artemis.llm.resource_admission import require_local_resource_admission
 
 from artemis.clients.screen_client_factory import (
     describe_backend,
@@ -94,6 +95,7 @@ class Agent(AgentBase):
         max_concurrency: int | None = None,
         session_id: str | None = None,
     ):
+        require_local_resource_admission()
         raw_sid = (
             session_id or os.getenv("ARTEMIS_SESSION_ID") or os.getenv("ARTEMIS_CLOUD_SESSION_ID")
         )

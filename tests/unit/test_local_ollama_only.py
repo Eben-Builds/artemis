@@ -100,6 +100,9 @@ def test_legacy_google_factory_cannot_bypass_policy():
 
 @pytest.mark.parametrize("base", [None, LOCAL_BASE_URL])
 def test_ollama_factory_ignores_cloud_url_and_credentials(monkeypatch, base):
+    # Client construction below is the upstream non-Lumi mode. The Lumi
+    # local-only mode now denies before construction until resources connect.
+    monkeypatch.setenv("ARTEMIS_LOCAL_ONLY", "0")
     import langchain_openai
     import httpx
 
