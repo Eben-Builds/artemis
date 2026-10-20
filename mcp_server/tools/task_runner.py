@@ -28,6 +28,10 @@ from mcp_server.notifiers import notify
 from mcp_server.utils import env_utils
 from artemis.config import ExplorerVersion, checker_overrides_for_level
 from artemis.config.runtime import read_ipc_port
+from artemis.llm.resource_admission import (
+    LocalResourceAdmissionError,
+    require_local_resource_admission,
+)
 from artemis.runtime import (
     DeviceExecutionLock,
     device_pool,
@@ -278,6 +282,20 @@ def mobile_run_task(
           `"pro"` (3-turn ReAct), `"ultra"` (deep pixel reasoning; slowest).
           Ignored for Flash.
     """
+    # Before trace creation, device lookup, daemon contact or process launch.
+    try:
+        require_local_resource_admission()
+    except LocalResourceAdmissionError as error:
+        return {
+            "status": "blocked",
+            "error": str(error),
+            "resource_admission": "NOT_IMPLEMENTED",
+            "hardware_status": "NOT_VERIFIED",
+            "task_started": False,
+            "device_touched": False,
+            "model_started": False,
+        }
+
     # 0. Validate and normalize model
     if model.lower() not in ("flash", "pro"):
         raise ValueError(f"Invalid model '{model}'. Must be either 'Flash' or 'Pro'.")

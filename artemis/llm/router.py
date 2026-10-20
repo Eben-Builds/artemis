@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from artemis.config.settings import settings
 from artemis.llm.local_policy import LOCAL_BASE_URL, enforce_local_endpoint
+from artemis.llm.resource_admission import require_local_resource_admission
 from artemis.llm.google.provider import supports_thinking_level
 from third_party.mobile_use.utils.logger import get_logger
 
@@ -204,6 +205,7 @@ class ModelFactory:
     @classmethod
     def get_model(cls, endpoint: ModelEndpoint) -> BaseChatModel:
         enforce_local_endpoint(endpoint)
+        require_local_resource_admission()
         key = endpoint.cache_key()
         if key not in cls._cache:
             cls._cache[key] = cls.create_model(endpoint)
@@ -212,6 +214,7 @@ class ModelFactory:
     @classmethod
     def create_model(cls, endpoint: ModelEndpoint) -> BaseChatModel:
         enforce_local_endpoint(endpoint)
+        require_local_resource_admission()
         if os.environ.get("ARTEMIS_FAKE_LLM") == "1":
             from artemis.llm.fake_model import FakeChatModel
 

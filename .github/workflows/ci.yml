@@ -65,6 +65,7 @@ jobs:
         run: >-
           uv run pytest
           tests/unit/test_local_ollama_only.py
+          tests/unit/test_local_resource_admission.py
           tests/unit/agents/test_flash_step_summarizer.py
           tests/unit/agents/test_flash_runner.py
           tests/unit/memory/test_history_chunking.py
@@ -78,6 +79,11 @@ jobs:
           tests/unit/utils/test_optional_ocr.py
           tests/unit/tools/test_ocr_tool.py
           -q
+
+      - name: Verify MCP task admission compatibility
+        run: >-
+          uv run pytest tests/unit/mcp/test_mcp_tools.py
+          -k "mobile_run_task or tool_signatures" -q
 
       # Device, cloud, manual, and end-to-end suites require dedicated
       # infrastructure and intentionally do not run on GitHub-hosted runners.
